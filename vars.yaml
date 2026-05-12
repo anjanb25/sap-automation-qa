@@ -8,7 +8,7 @@
 TEST_TYPE:                  SAPFunctionalTests
 
 # SAP Functional Test Tier
-# Options: Database High Availability, Central Services High Availability
+# Options: DatabaseHighAvailability, CentralServicesHighAvailability, AzureBackupDatabase
 # Not required if TEST_TYPE is ConfigurationChecks
 SAP_FUNCTIONAL_TEST_TYPE:   DatabaseHighAvailability
 
@@ -42,3 +42,7 @@ laws_workspace_name:        null
 adx_database_name:          null
 adx_cluster_fqdn:           null
 adx_client_id:              null
+
+# User Assigned Managed Identity Client ID
+# Required when the VM has multiple managed identities
+user_assigned_identity_client_id: null

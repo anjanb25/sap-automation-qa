@@ -5,11 +5,13 @@ ansible-runner
 
 # Azure packages
 azure-identity
+azure-keyvault-secrets
 azure-kusto-data
 azure-kusto-ingest
 azure-mgmt-compute
 azure-mgmt-loganalytics
 azure-mgmt-network
+azure-mgmt-recoveryservicesbackup
 azure-storage-blob
 azure-storage-queue
 
@@ -19,7 +21,9 @@ pylint
 coverage
 
 # Testing packages
+httpx
 pytest
+pytest-asyncio
 pytest-cov
 pytest-mock
 
@@ -36,3 +40,9 @@ requests
 # CLI tools
 click
 rich
+# API 
+fastapi
+uvicorn
+pydantic
+apscheduler
+python-multipart

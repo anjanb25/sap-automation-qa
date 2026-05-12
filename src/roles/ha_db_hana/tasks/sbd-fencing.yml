@@ -8,6 +8,7 @@
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   when:                                 database_cluster_type == "ISCSI"
   run_once:                             true
+  tags:                                 [pre-validation]
 
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
@@ -15,6 +16,7 @@
 - name:                                 "Pre Validations: HANA DB Nodes"
   when:                                 database_cluster_type == "ISCSI"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-db.yml"
+  tags:                                 [pre-validation]
 
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
@@ -26,9 +28,11 @@
                                         - database_cluster_type == "ISCSI"
                                         - pre_validations_status == "PASSED"
                                         - cluster_status_pre.stonith_action == "reboot"
+  tags:                                 [test-execution]
   block:
     - name:                             "Test Execution: SBD Inquisitor kill init"
       when:                             ansible_hostname == cluster_status_pre.primary_node
+      tags:                             [test-execution]
       block:
         - name:                         "Test Execution: Start timer"
           ansible.builtin.set_fact:
@@ -52,6 +56,7 @@
 
     - name:                             "Test Execution: Wait for the failover to happen"
       when:                             ansible_hostname == cluster_status_pre.secondary_node
+      tags:                             [test-execution]
       block:
         - name:                         "Test Execution: Validate HANA DB cluster status during stop operation."
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "true"
@@ -62,15 +67,26 @@
             saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
             hana_clone_resource_name:   "{{ hana_clone_resource_name | default('') }}"
             hana_primitive_resource_name: "{{ hana_primitive_resource_name | default('') }}"
+            hana_topology:                "{{ hana_topology | default('scale_up') }}"
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
           register:                     cluster_status_test_execution
-          until: |
-                                        cluster_status_test_execution.primary_node == cluster_status_pre.secondary_node and
-                                        cluster_status_test_execution.secondary_node == cluster_status_pre.primary_node
+          until: >
+                                        cluster_status_test_execution.primary_node != "" and
+                                        (
+                                          (hana_topology | default('scale_up') == 'scale_out_hsr' and
+                                           cluster_status_test_execution.primary_node in cluster_status_pre.secondary_site_nodes and
+                                           cluster_status_test_execution.primary_node != cluster_status_pre.primary_node and
+                                           cluster_status_test_execution.secondary_node != "")
+                                          or
+                                          (hana_topology | default('scale_up') != 'scale_out_hsr' and
+                                           cluster_status_test_execution.primary_node == cluster_status_pre.secondary_node and
+                                           cluster_status_test_execution.secondary_node == cluster_status_pre.primary_node)
+                                        )
 
     - name:                             "Test Execution: SBD Inquisitor kill manual fail over"
       when:                             ansible_hostname == cluster_status_pre.primary_node
+      tags:                             [test-execution]
       block:
         - name:                         "Test Execution: Validate HANA DB cluster status 2"
           get_cluster_status_db:
@@ -80,18 +96,33 @@
             saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
             hana_clone_resource_name:   "{{ hana_clone_resource_name | default('') }}"
             hana_primitive_resource_name: "{{ hana_primitive_resource_name | default('') }}"
+            hana_topology:                "{{ hana_topology | default('scale_up') }}"
           register:                     cluster_status_test_post
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
-          until: |
-                                        cluster_status_test_post.primary_node == cluster_status_pre.secondary_node and
-                                        cluster_status_test_post.secondary_node == cluster_status_pre.primary_node
+          until: >
+                                        cluster_status_test_post.primary_node != "" and
+                                        cluster_status_test_post.secondary_node != "" and
+                                        (
+                                          (hana_topology | default('scale_up') == 'scale_out_hsr' and
+                                           cluster_status_test_post.primary_node in cluster_status_pre.secondary_site_nodes and
+                                           cluster_status_test_post.primary_node != cluster_status_pre.primary_node)
+                                          or
+                                          (hana_topology | default('scale_up') != 'scale_out_hsr' and
+                                           cluster_status_test_post.primary_node == cluster_status_pre.secondary_node and
+                                           cluster_status_test_post.secondary_node == cluster_status_pre.primary_node)
+                                        )
 
         - name:                         "Test Execution: Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
-                                            cluster_status_test_post.primary_node == cluster_status_pre.secondary_node and
-                                            cluster_status_test_post.secondary_node == cluster_status_pre.primary_node
+                                            (hana_topology | default('scale_up') == 'scale_out_hsr' and
+                                             cluster_status_test_post.primary_node in cluster_status_pre.secondary_site_nodes and
+                                             cluster_status_test_post.primary_node != cluster_status_pre.primary_node)
+                                            or
+                                            (hana_topology | default('scale_up') != 'scale_out_hsr' and
+                                             cluster_status_test_post.primary_node == cluster_status_pre.secondary_node and
+                                             cluster_status_test_post.secondary_node == cluster_status_pre.primary_node)
                                           ) else 'FAILED' }}"
 
         - name:                         "Test Execution: Stop timer"
@@ -107,20 +138,20 @@
             test_case_details_from_test_case: {
                                         "Pre Validations: Remove any location_constraints": "{{ location_constraints_results }}",
                                         "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre }}",
-                                        "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
+                                        "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre | default('Not Executed') }}",
                                         "Test Execution: Kill inquisitor results": "{{ inquisitor_kill }}",
                                         "Post Validations: Validate HANA DB cluster status": "{{ cluster_status_test_post }}",
                                         }
 
-# /*---------------------------------------------------------------------------
-# |                          Post Validations                                 |
-# +--------------------------------------------------------------------------*/
-    - name:                             "Post Validations Tasks"
-      ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
-
   rescue:
     - name:                             "Rescue operation"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
+      tags:                             [cleanup]
+
+  always:
+    - name:                             "Post Validations Tasks"
+      ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
+      tags:                             [post-validation]
 
 - name:                                 "Pre Validations: Test Case Skipped"
   become:                               true
@@ -132,9 +163,10 @@
         test_case_details_from_test_case: {
                                           "Pre Validations: Remove any location_constraints": "{{ location_constraints_results }}",
                                           "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre }}",
-                                          "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
+                                          "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre | default('Not Executed') }}",
                                           "Cluster Status": "{{ cluster_status_pre }}",
                                         }
 
     - name:                             "Post Validations Tasks"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
+      tags:                             [post-validation]

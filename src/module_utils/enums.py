@@ -60,6 +60,27 @@ class HanaSRProvider(Enum):
 
     SAPHANASR = "SAPHanaSR"
     ANGI = "SAPHanaSR-angi"
+    SCALEOUT = "SAPHanaSR-ScaleOut"
+
+
+class HanaTopology(str, Enum):
+    """
+    Enum for the SAP HANA topology.
+    """
+
+    SCALE_UP = "scale_up"
+    SCALE_OUT_HSR = "scale_out_hsr"
+    SCALE_OUT_STANDBY = "scale_out_standby"
+
+
+class BackupOperation(Enum):
+    """Supported backup operations."""
+
+    DISCOVER_PROTECTED_ITEMS = "discover_protected_items"
+    CHECK_RESTORE_POINTS = "check_restore_points"
+    RESTORE_TO_DATABASE = "restore_to_database"
+    RESTORE_TO_FILESYSTEM = "restore_to_filesystem"
+    CHECK_RESTORE_JOB = "check_restore_job"
 
 
 class Parameters:

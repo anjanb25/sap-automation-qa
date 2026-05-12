@@ -10,6 +10,8 @@ sap_functional_test_type_map:
     value:                          HA_DB
   - name:                           "CentralServicesHighAvailability"
     value:                          HA_SCS
+  - name:                           "AzureBackupDatabase"
+    value:                          BACKUP_DB
 
 configuration_test_type_map:
   - name:                           "CentralServiceInstances"
@@ -36,6 +38,8 @@ test_groups:
           including Corosync settings, Pacemaker resources, SBD device configuration,
           and HANA system replication setup.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
       - name:                       HA Parameters Validation Offline
         task_name:                  ha-config-offline
@@ -45,6 +49,8 @@ test_groups:
           and HANA system replication setup. This test is run in an offline mode where the CIB files are
           already available in the offline_validation directory.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
       - name:                       Azure Load Balancer Validation
         task_name:                  azure-lb
@@ -52,8 +58,10 @@ test_groups:
           The Azure LB configuration test validates Azure Load Balancer setup including health probe
           configuration, backend pool settings, load balancing rules, and frontend IP configuration.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Resource Migration
+      - name:                       "HA Functional Test: [Primary Site] Resource migration"
         task_name:                  resource-migration
         description: |
           The Resource Migration test validates planned failover scenarios by executing controlled
@@ -62,8 +70,10 @@ test_groups:
           stability throughout the transition, and validates complete data synchronization after
           migration.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up]
 
-      - name:                       HA Functional Test- Primary Node Crash
+      - name:                       "HA Functional Test: [Primary Site] Crash master node"
         task_name:                  primary-node-crash
         description: |
           The Primary Index Server Crash test simulates cluster behavior when the HANA index server
@@ -71,18 +81,22 @@ test_groups:
           the process, then verifies automatic failover to the secondary node, monitors system
           replication status, and confirms service recovery without data loss.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up]
 
-      - name:                       HA Functional Test- Block Network Communication
+      - name:                       "HA Functional Test: [Primary Site] Block all network communication"
         task_name:                  block-network
         description: |
-          The Block Network test validates cluster behavior during network partition scenarios by
-          implementing iptables rules to block communication between primary and secondary HANA nodes.
-          It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
-          become isolated, and ensures cluster stability and data consistency after network
-          sconnectivity is restored.
+          The Block Network test validates cluster behavior during network partition scenarios from
+          the primary master node by implementing iptables rules to block communication between
+          primary and secondary HANA nodes. It verifies split-brain prevention mechanisms, validates
+          proper failover execution when nodes become isolated, and ensures cluster stability and data
+          consistency after network connectivity is restored.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Crash index server on primary node
+      - name:                       "HA Functional Test: [Primary Site] Crash master node index server"
         task_name:                  primary-crash-index
         description: |
           The Primary Index Server Crash test validates high availability behavior by forcefully
@@ -91,8 +105,10 @@ test_groups:
           proper failover execution, ensures data consistency, and validates service restoration after
           recovery.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Primary Node Kill
+      - name:                       "HA Functional Test: [Primary Site] Kill master node"
         task_name:                  primary-node-kill
         description: |
           The Primary Node Kill test validates cluster behavior by forcefully terminating all HANA
@@ -100,8 +116,21 @@ test_groups:
           triggering automatic failover to the secondary node. The test verifies proper promotion of
           secondary to primary, ensures data consistency, and validates complete cluster recovery.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Echo B on Primary Node
+      - name:                       "HA Functional Test: [Primary Site] Kill worker node"
+        task_name:                  primary-worker-node-kill
+        description: |
+          The Primary Worker Node Kill test validates scale-out HSR resilience by forcefully
+          terminating HANA processes on a worker node in the primary site. The test verifies that the
+          primary and secondary master roles remain stable while the worker node failure is absorbed by
+          the cluster.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       "HA Functional Test: [Primary Site] Crash master node (echo b)"
         task_name:                  primary-echo-b
         description: |
           The Primary Echo B test simulates an immediate system crash on the primary HANA node by
@@ -109,8 +138,20 @@ test_groups:
           tests the cluster's ability to handle unexpected primary node failures, validates proper
           failover execution, and verifies data consistency after recovery.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Secondary Node Kill
+      - name:                       "HA Functional Test: [Primary Site] Crash worker node (echo b)"
+        task_name:                  primary-worker-echo-b
+        description: |
+          The Primary Worker Echo B test simulates an immediate system crash on a worker node in the
+          primary site of a scale-out HSR cluster. The test verifies that the primary and secondary
+          master roles remain stable while the worker node failure is handled and the cluster recovers.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       "HA Functional Test: [Secondary Site] Kill master node"
         task_name:                  secondary-node-kill
         description: |
           The Secondary Node Kill test examines cluster resilience by forcefully terminating HANA
@@ -118,8 +159,33 @@ test_groups:
           node maintains normal operation while the secondary node undergoes recovery, ensuring cluster
           stability and proper data synchronization after the recovery process completes.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Echo B on Secondary Node
+      - name:                       "HA Functional Test: [Secondary Site] Block all network communication"
+        task_name:                  secondary-block-network
+        description: |
+          The Secondary Block Network test validates scale-out HSR behavior when network communication
+          is blocked from the secondary master node. It verifies that the primary site retains the
+          primary role, validates isolation handling for the secondary site, and confirms cluster
+          recovery after network connectivity is restored.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+
+      - name:                       "HA Functional Test: [Secondary Site] Kill worker node"
+        task_name:                  secondary-worker-node-kill
+        description: |
+          The Secondary Worker Node Kill test validates scale-out HSR resilience by forcefully
+          terminating HANA processes on a worker node in the secondary site. The test verifies that the
+          primary site retains the primary role and that the cluster recovers while site-level roles
+          remain stable.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       "HA Functional Test: [Secondary Site] Crash master node (echo b)"
         task_name:                  secondary-echo-b
         description: |
           The Secondary Echo B test simulates an uncontrolled system crash on the secondary HANA node
@@ -127,8 +193,20 @@ test_groups:
           procedures. The test validates that the primary node maintains operation, verifies cluster
           stability, and ensures system replication resumes correctly after the secondary node recovers.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Freeze File System on Primary Node
+      - name:                       "HA Functional Test: [Secondary Site] Crash worker node (echo b)"
+        task_name:                  secondary-worker-echo-b
+        description: |
+          The Secondary Worker Echo B test simulates an uncontrolled system crash on a worker node in
+          the secondary site of a scale-out HSR cluster. The test verifies that the primary site
+          remains primary and that the cluster returns to a stable replicated state after recovery.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       "HA Functional Test: [Primary Site] Freeze file system"
         task_name:                  fs-freeze
         description: |
           The Filesystem Freeze test validates cluster behavior when the primary node's filesystem
@@ -136,16 +214,20 @@ test_groups:
           node running HANA database, which triggers automatic failover to the secondary node. The test
           verifies proper cluster reaction, resource migration, and data consistency after recovery.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up]
 
-      - name:                       HA Functional Test- Test SBD Inquisitor kill
+      - name:                       "HA Functional Test: [Primary Site] SBD fencing"
         task_name:                  sbd-fencing
         description: |
           Validates cluster fencing mechanism by killing the SBD inquisitor process on the primary
           node. Tests proper fence detection, node isolation, and automated failover to ensure cluster
           integrity during hardware or communication failures.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Crash index server on secondary node
+      - name:                       "HA Functional Test: [Secondary Site] Crash master node index server"
         task_name:                  secondary-crash-index
         description: |
           The Secondary Index Server Crash test simulates failure of the HANA index server process on
@@ -153,6 +235,41 @@ test_groups:
           verifying the cluster's ability to handle secondary failures, tests automatic recovery
           mechanisms, and ensures system replication resumes properly after service restoration.
         enabled:                    true
+        applicability:
+          topology:                 [scale_up, scale_out_hsr]
+
+      - name:                       "HA Functional Test: [Primary Site] Crash worker node index server"
+        task_name:                  primary-worker-crash-index
+        description: |
+          The Primary Worker Index Server Crash test forcefully terminates the HANA index server on a
+          worker node in the primary site of a scale-out HSR cluster. The test verifies that site-level
+          master roles remain stable while the worker failure is absorbed by the cluster.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       "HA Functional Test: [Secondary Site] Crash worker node index server"
+        task_name:                  secondary-worker-crash-index
+        description: |
+          The Secondary Worker Index Server Crash test forcefully terminates the HANA index server on a
+          worker node in the secondary site of a scale-out HSR cluster. The test verifies that the
+          primary site retains the primary role and that the cluster returns to a stable replicated
+          state after recovery.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       "HA Functional Test: [Primary Site] Block HANA shared"
+        task_name:                  block-hana-shared
+        description: |
+          Simulates loss of the /hana/shared NFS mount on the primary master
+          nameserver by blocking the NFS server IP via iptables. The HANA
+          resource agent monitoring operation depends on binaries stored on
+          /hana/shared; blocking access causes the monitor to fail and triggers
+          a HANA resource failover to the secondary site.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
 
   - name:                           HA_SCS
     test_cases:
@@ -264,6 +381,56 @@ test_groups:
           cluster behavior, automatic failover execution.
         enabled:                    true
 
+  - name:                           BACKUP_DB_HANA
+    test_cases:
+      - name:                       Azure Backup Setup Verification
+        task_name:                  backup-setup-verification
+        description: |
+          Validates Azure Backup configuration for SAP HANA databases by discovering all protected
+          databases in the Recovery Services vault, verifying their backup configuration status and
+          health, and checking the last restore point for each protected item.
+        enabled:                    true
+
+      - name:                       Original Location Restore (OLR)
+        task_name:                  restore-to-db
+        description: |
+          Tests Original Location Recovery (OLR) of Azure Backup for SAP HANA.
+          Iterates over all discovered protected databases (SYSTEMDB + tenant DBs)
+          and restores each one. For standalone (non-HA) deployments, uses
+          OriginalWorkloadRestore. For HSR topologies, puts the cluster in maintenance
+          mode, breaks replication, restores using AlternateWorkloadRestore to the
+          primary node with overwrite (OLR is not supported for HSR containers),
+          re-establishes HSR replication, and takes the cluster out of maintenance mode.
+        enabled:                    true
+
+      - name:                       Restore Backup to FileSystem
+        task_name:                  restore-to-filesystem
+        description: |
+          Tests the restore-as-files functionality of Azure Backup for SAP HANA. Restores
+          the HANA database backup to a filesystem path, verifies the backup files are present,
+          then performs a HANA DB recovery from the backup files and validates the database
+          is operational.
+        enabled:                    true
+
+      - name:                       Recover DB using Database Commands
+        task_name:                  recover-db-commands
+        description: |
+          Tests HANA database recovery using native database commands (RECOVER DATA).
+          Queries the backup catalog, stops the HANA instance, performs recovery using
+          recoverSys.py, restarts the instance, and validates database consistency.
+        enabled:                    true
+
+      # ALR Test disabled by-default since it requires additional config and resources to run
+      - name:                       Alternate Location Restore (ALR)
+        task_name:                  restore-cross-vm
+        description: |
+          Tests Alternate Location Recovery (ALR) of Azure Backup for SAP HANA.
+          Restores tenant databases only (SYSTEMDB is excluded) to a
+          user-specified alternate VM using AlternateWorkloadRestore with
+          overwrite. Requires backup_target_vm_name to be set. Validates the
+          target HANA instance is running with consistent databases after all
+          tenant restores complete.
+        enabled:                    false
 
 # Default values for HANA DB HA Test Cases
 sap_sid:                            "HDB"
@@ -275,10 +442,29 @@ NFS_provider:                       "AFS"
 sap_port_to_ping:                   "1128"
 
 # Default values for retries, delay, timeout
-default_retries:                    50
+default_retries:                    75
 default_delay:                      10
-default_timeout:                    60
+default_timeout:                    90
 ascs_stonith_timeout:               120
+
+pre_validation_retries:             2
+
+# Default values for Azure Backup test cases
+backup_vault_resource_id:           ""
+backup_target_filesystem_path:      "/sapinstall/hana_backup/"
+backup_target_vm_name:              ""
+backup_target_vm_rg:                ""
+backup_restore_point_time:          ""
+backup_poll_interval:               30
+backup_poll_timeout:                7200
+backup_recover_timeout:             3600
+hana_userstore_key:                 "SYSTEM"
+backup_restore_systemdb:            true
+backup_restore_tenants:             []
+backup_hsr_primary_site:            "site1"
+backup_hsr_secondary_site:          "site2"
+backup_hsr_replication_mode:        "syncmem"
+backup_hsr_operation_mode:          "logreplay"
 
 # Commands for HANA DB HA Test Cases based on OS family
 commands:
@@ -287,18 +473,30 @@ commands:
     REDHAT:                         "cibadmin --query --xpath \"//primitive[@type='SAPHana']\" --node-path | grep -oP \"primitive\\[@id='\\K[^']+\""
 
   - name:                           get_hana_clone_resource_id
-    SUSE:                           "cibadmin --query --xpath \"//primitive[@type='SAPHana']\" --node-path | grep -oP \"master\\[@id='\\K[^']+\""
+    SUSE:                           "cibadmin --query --xpath \"//primitive[@type='SAPHana']\" --node-path | grep -oP \"primitive\\[@id='\\K[^']+\""
     REDHAT:                         "cibadmin --query --xpath \"//primitive[@type='SAPHana']\" --node-path | grep -oP \"clone\\[@id='\\K[^']+\""
 
   - name:                           get_hana_clone_resource_id_saphanasr_angi
-    SUSE:                           "cibadmin --query --xpath \"//primitive[@type='SAPHanaController']\" --node-path | grep -oP \"clone\\[@id='\\K[^']+\""
+    SUSE:                           "cibadmin --query --xpath \"//primitive[@type='SAPHanaController']\" --node-path | grep -oP \"(clone|master)\\[@id='\\K[^']+\""
+    REDHAT:                         "cibadmin --query --xpath \"//primitive[@type='SAPHanaController']\" --node-path | grep -oP \"(clone|master)\\[@id='\\K[^']+\""
 
   - name:                           get_hana_primitive_resource_id_saphanasr_angi
     SUSE:                           "cibadmin --query --xpath \"//primitive[@type='SAPHanaController']\" --node-path | grep -oP \"primitive\\[@id='\\K[^']+\""
+    REDHAT:                         "cibadmin --query --xpath \"//primitive[@type='SAPHanaController']\" --node-path | grep -oP \"primitive\\[@id='\\K[^']+\""
 
   - name:                           resource_migration_cmd
-    SUSE:                           "crm resource move {{ hana_clone_resource_name | default('msl_SAPHana_' ~ (db_sid | upper) ~ '_HDB' ~ db_instance_number) }} {{ cluster_status_pre.secondary_node | default('') }} force"
-    REDHAT:                         "pcs resource move {{ hana_clone_resource_name | default('SAPHana_' ~ (db_sid | upper) ~ '_' ~ db_instance_number ~ '-clone') }} --master"
+    SUSE:                           >-
+                                    crm resource move
+                                    {{ hana_clone_resource_name | default('msl_SAPHana_' ~ (db_sid | upper) ~ '_HDB' ~ db_instance_number) }}
+                                    {{ cluster_status_pre.secondary_node | default('') }}
+                                    force
+    REDHAT:                         >-
+                                    crm_resource --resource
+                                    {{ hana_clone_resource_name | default('SAPHana_' ~ (db_sid | upper) ~ '_' ~ db_instance_number ~ '-clone') }}
+                                    --move --promoted 2>/dev/null ||
+                                    crm_resource --resource
+                                    {{ hana_clone_resource_name | default('SAPHana_' ~ (db_sid | upper) ~ '_' ~ db_instance_number ~ '-clone') }}
+                                    --move --master
 
   - name:                           crm_report_cmd
     SUSE:                           "crm_report -f '{{ test_group_start_time }}' /tmp/{{ test_group_invocation_id }}"
@@ -319,3 +517,11 @@ commands:
   - name:                           ha_cluster_config_dump
     SUSE:                           "crm config show"
     REDHAT:                         "pcs config show"
+
+  - name:                           cluster_maintenance_on
+    SUSE:                           "crm configure property maintenance-mode=true"
+    REDHAT:                         "pcs property set maintenance-mode=true"
+
+  - name:                           cluster_maintenance_off
+    SUSE:                           "crm configure property maintenance-mode=false"
+    REDHAT:                         "pcs property set maintenance-mode=false"

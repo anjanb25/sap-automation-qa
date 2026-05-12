@@ -9,7 +9,30 @@ set -eo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd "$script_dir/.." && pwd)"
 
-# Activate the virtual environment
+# Source shared utilities (logging, etc.)
+source "$script_dir/utils.sh"
+source "$script_dir/usage.sh"
+
+# Route API subcommands early — they only need curl, not the venv or Ansible.
+case "${1:-}" in
+    health|workspace|workspaces|job|jobs|schedule|schedules)
+        source "$script_dir/api_utils.sh"
+        case "$1" in
+            health)              shift; api_health "$@" ;;
+            workspace|workspaces) shift; api_workspace "$@" ;;
+            job|jobs)            shift; api_job "$@" ;;
+            schedule|schedules)  shift; api_schedule "$@" ;;
+        esac
+        exit $?
+        ;;
+    -h|--help)
+        source "$script_dir/api_utils.sh"
+        show_sap_automation_qa_usage "$0"
+        exit 0
+        ;;
+esac
+
+# Activate the virtual environment (required for Ansible playbook execution)
 if [[ -f "$project_root/.venv/bin/activate" ]]; then
     source "$project_root/.venv/bin/activate"
 else
@@ -18,8 +41,7 @@ else
     exit 1
 fi
 
-# Source the utils script for logging and utility functions and the version check script
-source "$script_dir/utils.sh"
+# Source the version check script
 source "$script_dir/version_check.sh"
 
 # Use more portable command directory detection
@@ -35,6 +57,7 @@ export ANSIBLE_COLLECTIONS_PATH=/opt/ansible/collections:${ANSIBLE_COLLECTIONS_P
 export ANSIBLE_CONFIG="${cmd_dir}/../src/ansible.cfg"
 export ANSIBLE_MODULE_UTILS="${cmd_dir}/../src/module_utils:${ANSIBLE_MODULE_UTILS:+${ANSIBLE_MODULE_UTILS}}"
 export ANSIBLE_HOST_KEY_CHECKING=False
+log "INFO" "ANSIBLE_HOST_KEY_CHECKING: $ANSIBLE_HOST_KEY_CHECKING"
 set_output_context
 
 # Global variable to store the path of the temporary file.
@@ -69,79 +92,11 @@ parse_arguments() {
                 OFFLINE_MODE="true"
                 ;;
             -h|--help)
-                show_usage
+                show_sap_automation_qa_usage "$0"
                 exit 0
                 ;;
         esac
     done
-}
-
-show_usage() {
-    cat << EOF
-Usage: $0 [OPTIONS]
-
-Options:
-  -v, -vv, -vvv, etc.       Set Ansible verbosity level
-  --test_groups=GROUP       Specify test group to run (e.g., HA_DB_HANA, HA_SCS)
-  --test_cases=[case1,case2] Specify specific test cases to run (comma-separated, in brackets)
-  --extra-vars=VAR          Specify additional Ansible extra variables (e.g., --extra-vars='{"key":"value"}')
-  --offline                 Run offline test cases using previously collected CIB data.
-				While running offline tests, the script will look for CIB data in
-				WORKSPACES/SYSTEM/<SYSTEM_CONFIG_NAME>/offline_validation directory.
-				Extra vars "ansible_os_family" required for offline mode
-				(e.g., --extra-vars='{"ansible_os_family":"SUSE"}')
-  -h, --help                Show this help message
-
-Examples:
-  # High Availability Tests
-  $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash]
-  $0 --test_groups=HA_SCS
-  $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] -vv
-  $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] --extra-vars='{"key":"value"}'
-  $0 --test_groups=HA_DB_HANA --test_cases=[ha-config] --offline
-
-  # Configuration Checks (requires TEST_TYPE: ConfigurationChecks in vars.yaml)
-  $0 --extra-vars='{"configuration_test_type":"all"}'
-  $0 --extra-vars='{"configuration_test_type":"high_availability"}'
-  $0 --extra-vars='{"configuration_test_type":"Database"}' -v
-
-Available Test Cases for groups:
-	$0 --test_groups=HA_DB_HANA
-				ha-config => High Availability configuration
-				azure-lb => Azure Load Balancer
-				resource-migration => Resource Migration
-				primary-node-crash => Primary Node Crash
-				block-network => Block Network
-				primary-crash-index => Primary Crash Index
-				primary-node-kill => Primary Node Kill
-				primary-echo-b => Primary Echo B
-				secondary-node-kill => Secondary Node Kill
-				secondary-echo-b => Secondary Echo B
-				fs-freeze => FS Freeze
-				sbd-fencing => SBD Fencing
-				secondary-crash-index => Secondary Crash Index
-	$0 --test_groups=HA_SCS
-				ha-config => High Availability configuration
-				azure-lb => Azure Load Balancer
-				sapcontrol-config => SAP Control Configuration
-				ascs-migration => ASCS Migration
-				block-network => Block Network
-				kill-message-server => Kill Message Server
-				kill-enqueue-server => Kill Enqueue Server
-				kill-enqueue-replication => Kill Enqueue Replication
-				kill-sapstartsrv-process => Kill SAP Start Service Process
-				manual-restart => Manual Restart
-				ha-failover-to-node => HA Failover to Secondary Node
-
-Configuration Checks (set TEST_TYPE: ConfigurationChecks in vars.yaml):
-	configuration_test_type options (use with --extra-vars):
-				all => Run all configuration checks
-				Database => Database (HANA) configuration checks only
-				CentralServiceInstances => ASCS/ERS configuration checks only
-				ApplicationInstances => Application server configuration checks only
-
-Configuration is read from vars.yaml file.
-EOF
 }
 
 log "INFO" "ANSIBLE_COLLECTIONS_PATH: $ANSIBLE_COLLECTIONS_PATH"
@@ -164,8 +119,11 @@ validate_params() {
     fi
 
     for param in "${params[@]}"; do
-        # Use grep to find the line and awk to split the line and get the value
-        value=$(grep "^$param:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
+        if grep -q "^$param:" "$VARS_FILE"; then
+            value=$(grep "^$param:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
+        else
+            value=""
+        fi
 
         if [[ -z "$value" ]]; then
             missing_params+=("$param")
@@ -180,7 +138,11 @@ validate_params() {
         exit 1
     fi
 
-    WORKSPACES_DIR=$(grep "^WORKSPACES_DIR:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
+    if grep -q "^WORKSPACES_DIR:" "$VARS_FILE"; then
+        WORKSPACES_DIR=$(grep "^WORKSPACES_DIR:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
+    else
+        WORKSPACES_DIR=""
+    fi
     if [[ -z "$WORKSPACES_DIR" ]]; then
         WORKSPACES_DIR="WORKSPACES"
         log "INFO" "WORKSPACES_DIR not set in vars.yaml, using default: $WORKSPACES_DIR"
@@ -234,6 +196,9 @@ get_playbook_name() {
                 else
                     echo "playbook_00_ha_scs_functional_tests"
                 fi
+                ;;
+            "AzureBackupDatabase")
+                echo "playbook_00_backup_db_functional_tests"
                 ;;
             "ConfigurationChecks")
                 echo "playbook_00_configuration_checks"
@@ -478,6 +443,17 @@ run_ansible_playbook() {
         command+=" $ANSIBLE_VERBOSE"
     fi
 
+    if [[ "${ANSIBLE_SYNTAX_CHECK:-}" == "true" ]]; then
+        command+=" --syntax-check"
+        log "INFO" "Syntax-check mode enabled (ANSIBLE_SYNTAX_CHECK=true)"
+    fi
+
+    # Set ANSIBLE_LOG_PATH so execution output is captured for HTML reports
+    local log_dir="${system_config_folder}/logs"
+    mkdir -p "$log_dir"
+    export ANSIBLE_LOG_PATH="${log_dir}/execution_$(date +%Y%m%d_%H%M%S).log"
+    log "INFO" "Ansible execution log: $ANSIBLE_LOG_PATH"
+
     log "INFO" "Running ansible playbook... Command: $command"
     eval $command
     return_code=$?
@@ -519,6 +495,9 @@ main() {
     # Validate parameters
     validate_params
 
+    # Validate worksapce status for any running  jobs
+    check_workspace_busy $SYSTEM_CONFIG_NAME
+
     # Check if the SYSTEM_HOSTS and SYSTEM_PARAMS directory exists inside WORKSPACES/SYSTEM folder
     SYSTEM_CONFIG_FOLDER="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME"
     SID=$(echo "$SYSTEM_CONFIG_NAME" | awk -F'-' '{print $NF}')
@@ -558,6 +537,23 @@ main() {
         fi
 
         log "INFO" "Found $cib_files CIB file(s) for offline analysis"
+    fi
+
+    # Override SAP_FUNCTIONAL_TEST_TYPE based on --test_groups if specified
+    if [[ -n "$TEST_GROUPS" ]]; then
+        if [[ "$TEST_TYPE" != "SAPFunctionalTests" ]]; then
+            log "INFO" "Overriding TEST_TYPE: '$TEST_TYPE' -> 'SAPFunctionalTests' (--test_groups implies functional tests)"
+            TEST_TYPE="SAPFunctionalTests"
+        fi
+        local test_filter_script="${cmd_dir}/../src/module_utils/filter_tests.py"
+        local input_api_file="${cmd_dir}/../src/vars/input-api.yaml"
+        local resolved_type
+        resolved_type=$(python3 "$test_filter_script" "$input_api_file" "$TEST_GROUPS" "null" 2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('SAP_FUNCTIONAL_TEST_TYPE',''))" 2>/dev/null || true)
+        if [[ -n "$resolved_type" && "$resolved_type" != "$SAP_FUNCTIONAL_TEST_TYPE" ]]; then
+            log "INFO" "Overriding SAP_FUNCTIONAL_TEST_TYPE: '$SAP_FUNCTIONAL_TEST_TYPE' -> '$resolved_type' (from --test_groups=$TEST_GROUPS)"
+            SAP_FUNCTIONAL_TEST_TYPE="$resolved_type"
+        fi
     fi
 
     playbook_name=$(get_playbook_name "$TEST_TYPE" "$SAP_FUNCTIONAL_TEST_TYPE" "$OFFLINE_MODE")

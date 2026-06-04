@@ -17,13 +17,27 @@ The SAP Testing Automation Framework is an open-source orchestration tool design
 
 ![SAP Testing Automation Framework](./docs/images/sap-testing-automation-framework.png)
 
+
+## 🤖 Agent Skills &nbsp; ![New](https://img.shields.io/badge/NEW-brightgreen)
+
+> [!TIP]
+> This repository ships with **GitHub Copilot CLI agent skills** that guide you through setup, workspace creation, test execution, and result analysis — all from your terminal. Run `copilot` in the repo directory and ask naturally; skills activate automatically.
+>
+> **Quick start:**
+> ```bash
+> cd sap-automation-qa && copilot
+> ```
+> **Example prompts:** *"Help me set up the framework"* · *"Run HA tests for my system"* · *"Why did my last test fail?"*
+>
+> See the [setup guide](./docs/SETUP.MD#copilot-cli-skills) for the full list of skills and usage examples.
+
 ## 📊 Key Scenarios
 
 SAP Testing Automation is designed as a scalable framework to orchestrate and validate a wide spectrum of SAP landscape scenarios through repeatable, policy-driven test modules. The framework currently offers following scenarios -
 
 > [!NOTE]
 >
-> The High Availability testing scenario in the SAP Testing Framework is **generally available (GA)**, while the Configuration Checks scenario is currently in **public preview**.
+> The High Availability testing scenario in the SAP Testing Framework is **generally available (GA)**, while the Configuration Checks and Azure Backup Testing scenarios are currently in **public preview**.
 
 ### High Availability Testing
 
@@ -33,7 +47,7 @@ In the SAP Testing Automation Framework, thorough validation of high availabilit
 - **Functional Testing:** The framework executes series of real-world scenarios based on the SAP HANA and SAP Central Services high availability setup to identify potential issues, whether during a new system deployment or before implementing cluster changes in a production environment. The test cases are based on what is documented in how-to guides for SAP HANA and SAP Central Services configuration.
 - **Offline configuration validation:** Offline validation is a mode of the framework that validates SAP HANA and SAP Central Services high availability cluster configurations without establishing a live SSH connection to the production cluster. Instead, it analyzes captured cluster information base (CIB) XML files exported from each cluster node.
 
-### Azure Backup Testing
+### Azure Backup Testing (Preview)
 
 The framework validates Azure Backup operations for SAP HANA databases, covering the full backup-restore lifecycle. It supports both HA (two-node cluster) and non-HA (single-node) deployments.
 

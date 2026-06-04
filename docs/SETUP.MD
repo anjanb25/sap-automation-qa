@@ -182,7 +182,7 @@ source .venv/bin/activate
 
 #### 1.4.2. Container Setup (Preview)
 
-As an alternative to the local setup, the framework can also run as a Docker container on the management server. The containerized deployment exposes a REST API that allows you to execute tests, schedule recurring test runs, and monitor job status. For detailed information on API usage, scheduling, and troubleshooting, see [SAP QA Service](./SAP_QA_SERVICE.md).
+As an alternative to the local setup, the framework can also run as a Docker container on the management server. The containerized deployment exposes a REST API that allows you to execute tests, schedule recurring test runs, and monitor job status. For detailed information on API usage, scheduling, and troubleshooting, see [SAP QA Service](./SCHEDULE.md).
 
 The container builds its own isolated environment, so the local setup (step 1.4.1) is not required when using this approach. However, the system configuration described in section 2 must still be completed, as the container reads workspace configuration files from `WORKSPACES/SYSTEM/`.
 
@@ -242,8 +242,9 @@ TEST_TYPE: "SAPFunctionalTests"
 # The type of SAP functional test to be executed. Supported values are:
 # - DatabaseHighAvailability
 # - CentralServicesHighAvailability
-# - Not required for ConfigurationChecks test type
-SAP_FUNCTIONAL_TEST_TYPE: "DatabaseHighAvailability"  # or "CentralServicesHighAvailability"
+# - AzureBackupDatabase
+# - Optional for ConfigurationChecks test type
+SAP_FUNCTIONAL_TEST_TYPE: "DatabaseHighAvailability"  # or "CentralServicesHighAvailability" / "AzureBackupDatabase"
 
 # The name of the SAP system configuration for which you want to execute the test cases.
 # It would be the name of the folder under 'WORKSPACE/SYSTEM/' where it could find hosts.yaml, sap-parameters.yaml files of the SAP system configuration
@@ -284,6 +285,8 @@ adx_cluster_fqdn: "your-adx-cluster-fqdn"
 adx_database_name: "your-adx-database-name"
 adx_client_id: "your-adx-client-id"
 ```
+
+> **Tip:** Individual `vars.yaml` values can be overridden at runtime using CLI flags (e.g., `--test-type=`, `--system-config=`). Run `./scripts/sap_automation_qa.sh --help` for the full list of available flags.
 
 #### 2.2. System Configuration (WORKSPACES)
 
@@ -438,6 +441,67 @@ When using Azure Key Vault to store credentials, the framework retrieves authent
   2. Configure `key_vault_id` and `secret_id` parameters in `sap-parameters.yaml` as shown in section 2.2.2.
 
 **Important**: When using Key Vault authentication, do NOT create local credential files (`ssh_key.ppk` or `password` files).
+
+
+## Copilot CLI Skills
+
+The repository includes [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/about-copilot-cli) agent skills that provide guided, context-aware workflows for common STAF operations. Skills understand the project structure, configuration file formats, and test execution patterns, so they can walk you through tasks step by step.
+
+### Prerequisites
+
+- [GitHub Copilot CLI](https://docs.github.com/en/copilot/getting-started-with-github-copilot) must be installed and authenticated on the management server. See [GitHub Copilot CLI installation](https://docs.github.com/en/copilot/getting-started-with-github-copilot) for instructions.
+- Run the CLI from the root of this repository so skills can discover workspace files and scripts.
+
+### Available Skills
+
+| Skill | What It Does |
+|-------|-------------|
+| `/setup-guide` | Walks through environment setup — local install via `setup.sh`, Docker container deployment, and `vars.yaml` configuration. |
+| `/workspace-creator` | Generates a new workspace directory under `WORKSPACES/SYSTEM/` with `sap-parameters.yaml` and `hosts.yaml` populated from your system details. |
+| `/workspace-validator` | Checks an existing workspace for missing files, incomplete fields, invalid values, and SSH readiness before you run tests. |
+| `/test-runner` | Executes HA functional tests, configuration checks, or backup tests via `sap_automation_qa.sh` in direct Ansible or API mode. |
+| `/test-result-analyzer` | Reads test logs, HTML reports, and API job output, then classifies failures against known patterns to surface root causes. |
+
+### How to Use
+
+1. Open a terminal in the repository root and launch Copilot CLI:
+
+   ```bash
+   cd sap-automation-qa
+   copilot
+   ```
+
+2. Skills activate automatically based on your prompt. For example:
+
+   ```text
+   > Help me set up the framework on my management server
+   # Activates: setup-guide
+
+   > Create a workspace for my DEV system with SID X00
+   # Activates: workspace-creator
+
+   > Validate my workspace configuration
+   # Activates: workspace-validator
+
+   > Run HA database tests for my system
+   # Activates: test-runner
+
+   > Why did my last test fail?
+   # Activates: test-result-analyzer
+   ```
+
+3. You can also invoke a skill directly by name:
+
+   ```text
+   > Use the /test-runner skill to execute configuration checks on DEV-WEEU-SAP01-X00
+   ```
+
+4. To see all available skills:
+
+   ```text
+   > /skills list
+   ```
+
 
 ## Update the framework
 

@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.2
+Release Date: 06-30-2026
+
+1. Configuration checks parity with legacy QualityCheck
+   - Added Oracle OEL database checks (DB-ORA-0001 through DB-ORA-0007).
+   - Added HANA filesystem/storage checks (DB-HANA-0058 through DB-HANA-0065) with disk consistency and storage-type validators.
+   - Added RHEL Mellanox kernel guards (DB-HANA-0066 through DB-HANA-0072).
+2. Windows SAP system support for configuration checks
+   - WinRM/CredSSP connectivity, OS-dispatched commands via `windows_command` field in check definitions.
+   - WSFC cluster parameter validation (SAP-0019 through SAP-0031) and Windows OS checks (IC-0042 through IC-0048).
+   - Renamed MSSQL to SQLSERVER across check definitions and VM support matrix.
+3. ANGI and simple mount support for RHEL HANA clusters
+   - SAPHanaSR-angi resource agent support for RHEL with correct resource ID discovery.
+   - Simple mount architecture support for SCS/ERS on RHEL.
+4. AI assistant skills and plugins for Copilot CLI, Claude Code, and Gemini CLI
+5. Ansible collections management via `collections/requirements.yml` with pinned versions
+6. Documentation overhaul: README restructured, Windows hosts.yaml examples in SETUP.MD
+7. Bug fixes: `default('', true)` for managed identity auth, role extraction case sensitivity, storage_type normalization
+
 ## 1.1.1
 Release Date: 05-30-2026
 
